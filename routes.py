@@ -1,13 +1,15 @@
-import os
+from flask import Blueprint, render_template, request, jsonify, send_file, flash, redirect, url_for, session, current_app
+from flask_limiter.util import get_remote_address
 import logging
-import validators
-from flask import render_template, request, jsonify, send_file, flash, redirect, url_for, session
-from app import app
-from ssl_generator import SSLGenerator
-from real_acme_client import RealACMEClient
-import tempfile
 import time
 from datetime import datetime, timedelta
+import os
+
+from services import SSLServiceFactory
+from validators import DomainValidator
+
+# Create blueprint
+main_bp = Blueprint('main', __name__)
 
 # Store for temporary file downloads with expiration
 temp_files = {}
@@ -15,303 +17,265 @@ temp_files = {}
 # Store for ACME validation challenges
 acme_challenges = {}
 
-@app.route('/')
+logger = logging.getLogger(__name__)
+
+@main_bp.route('/')
 def index():
+    """Main index page"""
     return render_template('index.html')
 
-@app.route('/generate_ssl', methods=['POST'])
+@main_bp.route('/generate_ssl', methods=['POST'])
 def generate_ssl():
+    """Generate SSL certificate endpoint"""
     try:
         # Get form data
         domains = request.form.get('domains', '').strip()
         email = request.form.get('email', '').strip()
-        validation_method = request.form.get('validation_method', 'http')
+        validation_method = request.form.get('validation_method', 'dns')
         accept_agreement = request.form.get('accept_agreement') == 'on'
-        cert_type = request.form.get('cert_type', 'demo')  # demo or real
+        cert_type = request.form.get('cert_type', 'demo')
         
-        # Validate inputs
-        if not domains:
-            flash('Domain name(s) are required.', 'error')
-            return redirect(url_for('index'))
-            
-        if not email:
-            flash('Email address is required.', 'error')
-            return redirect(url_for('index'))
-            
-        if not validators.email(email):
-            flash('Please enter a valid email address.', 'error')
-            return redirect(url_for('index'))
-            
+        # Validate agreement
         if not accept_agreement:
             flash('You must accept the Let\'s Encrypt Subscriber Agreement.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         
-        # Parse domains
-        domain_list = [d.strip() for d in domains.split(',') if d.strip()]
-        if not domain_list:
-            flash('Please enter at least one valid domain.', 'error')
-            return redirect(url_for('index'))
+        # Validate domains
+        is_valid, domain_list, domain_error = DomainValidator.validate_domains(domains)
+        if not is_valid:
+            flash(f'Domain validation failed: {domain_error}', 'error')
+            return redirect(url_for('main.index'))
+        
+        # Validate email
+        is_valid, email_error = DomainValidator.validate_email(email)
+        if not is_valid:
+            flash(f'Email validation failed: {email_error}', 'error')
+            return redirect(url_for('main.index'))
+        
+        # Validate validation method
+        is_valid, method_error = DomainValidator.validate_validation_method(validation_method)
+        if not is_valid:
+            flash(f'Validation method error: {method_error}', 'error')
+            return redirect(url_for('main.index'))
+        
+        # Create SSL service
+        staging = current_app.config.get('ACME_STAGING', True)
+        ssl_service = SSLServiceFactory.create_service(cert_type, staging)
+        
+        try:
+            # Generate certificate
+            result = ssl_service.generate_certificate(
+                domains=domain_list,
+                email=email,
+                validation_method=validation_method
+            )
             
-        # Validate domain format
-        for domain in domain_list:
-            if not is_valid_domain(domain):
-                flash(f'Invalid domain format: {domain}', 'error')
-                return redirect(url_for('index'))
-        
-        # Generate SSL certificate based on type
-        if cert_type == 'real':
-            # Real ACME certificate with domain validation
-            acme_client = RealACMEClient(staging=True)  # Use staging for testing
-            try:
-                challenge_result = acme_client.generate_certificate_with_challenges(
-                    domains=domain_list,
-                    email=email,
-                    validation_method=validation_method
-                )
-                
+            if not result['success']:
+                flash(f'Certificate generation failed: {result.get("error", "Unknown error")}', 'error')
+                return redirect(url_for('main.index'))
+            
+            # Handle different certificate types
+            if cert_type == 'real':
                 # Store challenge information for later verification
-                request_id = challenge_result['request_id']
+                request_id = result['challenge_data']['request_id']
                 acme_challenges[request_id] = {
-                    'client': acme_client,
-                    'challenges': challenge_result['challenges'],
+                    'service': ssl_service,
+                    'challenges': result['challenge_data']['challenges'],
                     'validation_method': validation_method,
-                    'expires': datetime.now() + timedelta(hours=1)
+                    'expires': result['expires']
                 }
                 
                 return render_template('validation.html',
                                      request_id=request_id,
-                                     challenges=challenge_result['challenges'],
+                                     challenges=result['challenge_data']['challenges'],
                                      validation_method=validation_method,
                                      domains=domain_list)
+            else:
+                # Demo certificate - store files for download
+                file_id = str(int(time.time()))
+                temp_files[file_id] = {
+                    'files': result['files'],
+                    'expires': result['expires'],
+                    'domain': domain_list[0]
+                }
                 
-            except Exception as e:
-                logging.error(f"Real ACME generation error: {str(e)}")
-                flash(f'Real SSL generation failed: {str(e)}', 'error')
-                return redirect(url_for('index'))
-        else:
-            # Demo certificate generation
-            ssl_generator = SSLGenerator()
-            try:
-                cert_files = ssl_generator.generate_certificate(
-                    domains=domain_list,
-                    email=email,
-                    validation_method=validation_method
-                )
-            
-                if cert_files:
-                    # Store file paths with expiration time (15 minutes)
-                    expiration_time = datetime.now() + timedelta(minutes=15)
-                    file_id = str(int(time.time()))
-                    temp_files[file_id] = {
-                        'files': cert_files,
-                        'expires': expiration_time,
-                        'domain': domain_list[0]  # Primary domain for file naming
-                    }
-                    
-                    # Read certificate contents for display
-                    cert_contents = {}
-                    try:
-                        with open(cert_files['private_key'], 'r') as f:
-                            cert_contents['private_key'] = f.read()
-                        with open(cert_files['certificate'], 'r') as f:
-                            cert_contents['certificate'] = f.read()
-                        with open(cert_files['ca_bundle'], 'r') as f:
-                            cert_contents['ca_bundle'] = f.read()
-                    except Exception as e:
-                        logging.error(f"Error reading certificate contents: {str(e)}")
-                        cert_contents = None
-
-                    flash('Demo SSL certificate generated successfully! Download links will expire in 15 minutes.', 'success')
-                    return render_template('index.html', 
-                                         success=True, 
-                                         file_id=file_id,
-                                         domain=domain_list[0],
-                                         cert_contents=cert_contents,
-                                         cert_type='demo')
-                else:
-                    flash('Failed to generate SSL certificate. Please check your domain configuration.', 'error')
-                    return redirect(url_for('index'))
-                    
-            except Exception as e:
-                logging.error(f"Demo SSL generation error: {str(e)}")
-                flash(f'Demo SSL generation failed: {str(e)}', 'error')
-                return redirect(url_for('index'))
+                # Read certificate contents for display
+                cert_contents = _read_certificate_contents(result['files'])
+                
+                flash('Demo SSL certificate generated successfully! Download links will expire in 15 minutes.', 'success')
+                return render_template('index.html', 
+                                     success=True, 
+                                     file_id=file_id,
+                                     domain=domain_list[0],
+                                     cert_contents=cert_contents,
+                                     cert_type='demo')
+                
+        finally:
+            # Cleanup service resources
+            ssl_service.cleanup()
             
     except Exception as e:
-        logging.error(f"Route error: {str(e)}")
+        logger.error(f"SSL generation error: {str(e)}")
         flash('An unexpected error occurred. Please try again.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
 
-@app.route('/verify_challenges/<request_id>', methods=['POST'])
+@main_bp.route('/verify_challenges/<request_id>', methods=['POST'])
 def verify_challenges(request_id):
     """Verify domain validation challenges and generate real certificate"""
     try:
         if request_id not in acme_challenges:
             flash('Invalid or expired validation request.', 'error')
-            return redirect(url_for('index'))
+            return redirect(url_for('main.index'))
         
         challenge_info = acme_challenges[request_id]
-        acme_client = challenge_info['client']
+        ssl_service = challenge_info['service']
         
         # Verify challenges
-        verified, verification_results = acme_client.verify_challenges(request_id)
+        result = ssl_service.verify_challenges(request_id)
         
-        if not verified:
+        if not result['success']:
             # Show detailed validation results with specific errors
             return render_template('validation_results.html', 
                                  success=False,
-                                 verification_results=verification_results,
+                                 verification_results=result.get('verification_results', {}),
                                  request_id=request_id,
                                  challenge_info=challenge_info)
         
-        if verified:
-            # Complete real certificate generation
-            try:
-                cert_files = acme_client.complete_certificate_generation(request_id)
-                
-                # Store file paths with expiration time (15 minutes)
-                expiration_time = datetime.now() + timedelta(minutes=15)
-                file_id = str(int(time.time()))
-                temp_files[file_id] = {
-                    'files': cert_files,
-                    'expires': expiration_time,
-                    'domain': challenge_info['challenges'][0]['domain']
-                }
-                
-                # Read certificate contents for display
-                cert_contents = {}
-                try:
-                    with open(cert_files['private_key'], 'r') as f:
-                        cert_contents['private_key'] = f.read()
-                    with open(cert_files['certificate'], 'r') as f:
-                        cert_contents['certificate'] = f.read()
-                    with open(cert_files['ca_bundle'], 'r') as f:
-                        cert_contents['ca_bundle'] = f.read()
-                except Exception as e:
-                    logging.error(f"Error reading certificate contents: {str(e)}")
-                    cert_contents = None
-                
-                # Clean up challenge info
-                del acme_challenges[request_id]
-                
-                flash('Real SSL certificate generated successfully! Download links will expire in 15 minutes.', 'success')
-                return render_template('index.html', 
-                                     success=True, 
-                                     file_id=file_id,
-                                     domain=challenge_info['challenges'][0]['domain'],
-                                     cert_contents=cert_contents,
-                                     cert_type='real')
-                                     
-            except Exception as e:
-                logging.error(f"Real certificate generation error: {str(e)}")
-                flash(f'Certificate generation failed: {str(e)}', 'error')
-                return render_template('validation.html',
-                                     request_id=request_id,
-                                     challenges=challenge_info['challenges'],
-                                     validation_method=challenge_info['validation_method'],
-                                     verification_failed=True,
-                                     verification_results=verification_results)
-        else:
-            # Show validation errors
-            return render_template('validation.html',
-                                 request_id=request_id,
-                                 challenges=challenge_info['challenges'],
-                                 validation_method=challenge_info['validation_method'],
-                                 verification_failed=True,
-                                 verification_results=verification_results)
-                                 
+        # Store files for download
+        file_id = str(int(time.time()))
+        temp_files[file_id] = {
+            'files': result['files'],
+            'expires': result['expires'],
+            'domain': challenge_info['challenges'][0]['domain']
+        }
+        
+        # Read certificate contents for display
+        cert_contents = _read_certificate_contents(result['files'])
+        
+        # Clean up challenge info
+        del acme_challenges[request_id]
+        
+        flash('Real SSL certificate generated successfully! Download links will expire in 15 minutes.', 'success')
+        return render_template('index.html', 
+                             success=True, 
+                             file_id=file_id,
+                             domain=challenge_info['challenges'][0]['domain'],
+                             cert_contents=cert_contents,
+                             cert_type='real')
+        
     except Exception as e:
-        logging.error(f"Challenge verification error: {str(e)}")
-        flash('Challenge verification failed. Please try again.', 'error')
-        return redirect(url_for('index'))
+        logger.error(f"Challenge verification error: {str(e)}")
+        flash('An unexpected error occurred during verification. Please try again.', 'error')
+        return redirect(url_for('main.index'))
 
-@app.route('/download/<file_id>/<file_type>')
+@main_bp.route('/download/<file_id>/<file_type>')
 def download_file(file_id, file_type):
-    # Clean up expired files
-    cleanup_expired_files()
-    
-    if file_id not in temp_files:
-        flash('Download link has expired or is invalid.', 'error')
-        return redirect(url_for('index'))
-    
-    file_info = temp_files[file_id]
-    if datetime.now() > file_info['expires']:
-        # Clean up expired file
-        cleanup_file(file_id)
-        flash('Download link has expired.', 'error')
-        return redirect(url_for('index'))
-    
-    domain = file_info['domain']
-    cert_files = file_info['files']
-    
+    """Download certificate files"""
     try:
-        if file_type == 'key':
-            return send_file(cert_files['private_key'], 
-                           as_attachment=True, 
-                           download_name=f'{domain}.key',
-                           mimetype='application/x-pem-file')
-        elif file_type == 'crt':
-            return send_file(cert_files['certificate'], 
-                           as_attachment=True, 
-                           download_name=f'{domain}.crt',
-                           mimetype='application/x-pem-file')
-        elif file_type == 'ca':
-            return send_file(cert_files['ca_bundle'], 
-                           as_attachment=True, 
-                           download_name=f'{domain}-ca.crt',
-                           mimetype='application/x-pem-file')
-        else:
+        # Clean up expired files
+        cleanup_expired_files()
+        
+        if file_id not in temp_files:
+            flash('File not found or expired.', 'error')
+            return redirect(url_for('main.index'))
+        
+        file_info = temp_files[file_id]
+        
+        # Check if file exists
+        if file_type not in file_info['files']:
             flash('Invalid file type requested.', 'error')
-            return redirect(url_for('index'))
-            
+            return redirect(url_for('main.index'))
+        
+        file_path = file_info['files'][file_type]
+        
+        if not os.path.exists(file_path):
+            flash('File not found on server.', 'error')
+            return redirect(url_for('main.index'))
+        
+        # Generate filename
+        domain = file_info['domain']
+        if file_type == 'private_key':
+            filename = f'{domain}.key'
+        elif file_type == 'certificate':
+            filename = f'{domain}.crt'
+        elif file_type == 'ca_bundle':
+            filename = f'{domain}-ca.crt'
+        else:
+            filename = f'{domain}-{file_type}'
+        
+        return send_file(file_path, as_attachment=True, download_name=filename)
+        
     except Exception as e:
-        logging.error(f"Download error: {str(e)}")
-        flash('Error downloading file.', 'error')
-        return redirect(url_for('index'))
+        logger.error(f"Download error: {str(e)}")
+        flash('Download failed. Please try again.', 'error')
+        return redirect(url_for('main.index'))
 
-def is_valid_domain(domain):
-    """Validate domain format"""
-    if not domain or len(domain) > 253:
-        return False
-    
-    # Remove protocol if present
-    if domain.startswith(('http://', 'https://')):
-        return False
-    
-    # Basic domain validation
-    import re
-    pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
-    return re.match(pattern, domain) is not None
+@main_bp.route('/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    })
+
+def _read_certificate_contents(files):
+    """Read certificate file contents for display"""
+    try:
+        cert_contents = {}
+        for file_type, file_path in files.items():
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    cert_contents[file_type] = f.read()
+        return cert_contents
+    except Exception as e:
+        logger.error(f"Error reading certificate contents: {str(e)}")
+        return None
 
 def cleanup_expired_files():
     """Clean up expired temporary files"""
     current_time = datetime.now()
-    expired_ids = [file_id for file_id, info in temp_files.items() 
-                   if current_time > info['expires']]
     
-    for file_id in expired_ids:
+    # Clean up expired file downloads
+    expired_files = []
+    for file_id, file_info in temp_files.items():
+        if current_time > file_info['expires']:
+            expired_files.append(file_id)
+    
+    for file_id in expired_files:
         cleanup_file(file_id)
+    
+    # Clean up expired challenges
+    expired_challenges = []
+    for request_id, challenge_info in acme_challenges.items():
+        if current_time > challenge_info['expires']:
+            expired_challenges.append(request_id)
+    
+    for request_id in expired_challenges:
+        del acme_challenges[request_id]
 
 def cleanup_file(file_id):
-    """Clean up a specific temporary file"""
-    if file_id in temp_files:
-        file_info = temp_files[file_id]
-        try:
-            # Remove physical files
+    """Clean up a specific file"""
+    try:
+        if file_id in temp_files:
+            file_info = temp_files[file_id]
+            
+            # Remove files from disk
             for file_path in file_info['files'].values():
                 if os.path.exists(file_path):
                     os.remove(file_path)
-        except Exception as e:
-            logging.error(f"Error cleaning up files: {str(e)}")
-        
-        # Remove from memory
-        del temp_files[file_id]
+            
+            # Remove from memory
+            del temp_files[file_id]
+            
+    except Exception as e:
+        logger.error(f"File cleanup error: {str(e)}")
 
-@app.errorhandler(404)
+@main_bp.errorhandler(404)
 def not_found(error):
     return render_template('index.html'), 404
 
-@app.errorhandler(500)
+@main_bp.errorhandler(500)
 def internal_error(error):
     flash('An internal error occurred. Please try again.', 'error')
     return render_template('index.html'), 500

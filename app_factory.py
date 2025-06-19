@@ -1,0 +1,58 @@
+from flask import Flask
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
+import logging
+import os
+from config import config
+
+def create_app(config_name='default'):
+    """Application factory pattern"""
+    app = Flask(__name__)
+    
+    # Load configuration
+    app.config.from_object(config[config_name])
+    
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, app.config['LOG_LEVEL']),
+        format=app.config['LOG_FORMAT']
+    )
+    
+    # Security middleware
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    
+    # Rate limiting
+    if app.config['RATE_LIMIT_ENABLED']:
+        limiter = Limiter(
+            app=app,
+            key_func=get_remote_address,
+            default_limits=["200 per day", "50 per hour"]
+        )
+        app.limiter = limiter
+    
+    # Create upload directory
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
+    # Register blueprints
+    from routes import main_bp
+    app.register_blueprint(main_bp)
+    
+    # Register error handlers
+    register_error_handlers(app)
+    
+    return app
+
+def register_error_handlers(app):
+    """Register error handlers"""
+    @app.errorhandler(404)
+    def not_found(error):
+        return {'error': 'Not found'}, 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        return {'error': 'Internal server error'}, 500
+    
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        return {'error': 'Rate limit exceeded'}, 429 
