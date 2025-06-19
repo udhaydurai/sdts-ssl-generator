@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="ssl-generator-card">
+            <h1 class="mb-4">Domain Validation Required</h1>
+            
+            <div class="alert alert-info mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Real SSL Certificate Generation:</strong> To issue a trusted SSL certificate, 
+                you must prove ownership of your domain(s) by completing the validation challenges below.
+            </div>
+
+            {% if verification_failed %}
+                <div class="alert alert-danger mb-4">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Validation Failed:</strong> Please complete the required steps and try again.
+                </div>
+            {% endif %}
+
+            <h3 class="mb-3">
+                <i class="fas fa-shield-alt me-2"></i>
+                {% if validation_method == 'http' %}HTTP Validation{% else %}DNS Validation{% endif %} Challenges
+            </h3>
+
+            {% for challenge in challenges %}
+            <div class="challenge-block mb-4">
+                <div class="challenge-header">
+                    <h5>{{ challenge.domain }}</h5>
+                    {% if verification_failed and verification_results %}
+                        {% for result in verification_results %}
+                            {% if result.domain == challenge.domain %}
+                                {% if result.verified %}
+                                    <span class="badge bg-success">Verified</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+
+                {% if validation_method == 'http' %}
+                    <!-- HTTP-01 Challenge -->
+                    <div class="validation-instructions">
+                        <h6><i class="fas fa-globe me-2"></i>HTTP File Challenge</h6>
+                        <p>Create a file on your web server at the following location:</p>
+                        
+                        <div class="code-block mb-3">
+                            <label>File Path:</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control code-input" value="{{ challenge.file_path }}" readonly>
+                                <button class="btn btn-outline-secondary copy-btn" data-clipboard-text="{{ challenge.file_path }}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="code-block mb-3">
+                            <label>File Content:</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control code-input" value="{{ challenge.file_content }}" readonly>
+                                <button class="btn btn-outline-secondary copy-btn" data-clipboard-text="{{ challenge.file_content }}">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="verification-url mb-3">
+                            <label>Verification URL:</label>
+                            <a href="{{ challenge.verification_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-external-link-alt me-1"></i>
+                                Test: {{ challenge.verification_url }}
+                            </a>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-cog me-2"></i>Server Configuration Required</h6>
+                            <p><strong>If you get 404 or access denied errors, configure your web server:</strong></p>
+                            
+                            <div class="config-tabs">
+                                <div class="config-section">
+                                    <strong>IIS / web.config:</strong>
+                                    <pre class="config-code">&lt;configuration&gt;
+  &lt;system.webServer&gt;
+    &lt;staticContent&gt;
+      &lt;mimeMap fileExtension="." mimeType="text/plain" /&gt;
+    &lt;/staticContent&gt;
+    &lt;handlers&gt;
+      &lt;add name="AcmeChallenge" path=".well-known/acme-challenge/*" verb="GET" modules="StaticFileModule" resourceType="Either" /&gt;
+    &lt;/handlers&gt;
+  &lt;/system.webServer&gt;
+&lt;/configuration&gt;</pre>
+                                </div>
+                                
+                                <div class="config-section mt-3">
+                                    <strong>Apache / .htaccess:</strong>
+                                    <pre class="config-code">RewriteEngine On
+RewriteCond %{REQUEST_URI} ^/.well-known/acme-challenge/
+RewriteRule ^(.*)$ $1 [L]
+
+&lt;Files "/.well-known/acme-challenge/*"&gt;
+    ForceType text/plain
+&lt;/Files&gt;</pre>
+                                </div>
+                                
+                                <div class="config-section mt-3">
+                                    <strong>Nginx:</strong>
+                                    <pre class="config-code">location ^~ /.well-known/acme-challenge/ {
+    default_type "text/plain";
+    root /var/www/html;
+}</pre>
+                                </div>
+                            </div>
+                            
+                            <div class="step-by-step mt-3">
+                                <h6><i class="fas fa-list-ol me-2"></i>Step-by-Step Instructions:</h6>
+                                <ol>
+                                    <li>Create the directory structure on your web server: <code>/.well-known/acme-challenge/</code></li>
+                                    <li>Upload the challenge file (no file extension) with the exact content shown above</li>
+                                    <li>Configure your web server using the appropriate config from the warning box above</li>
+                                    <li>Test the verification URL to ensure it returns the correct content</li>
+                                    <li>Click "Verify & Generate Certificate" once all challenges are accessible</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <!-- DNS-01 Challenge -->
+                    <div class="validation-instructions">
+                        <h6><i class="fas fa-server me-2"></i>DNS TXT Record Challenge</h6>
+                        <p>Add the following TXT record to your domain's DNS:</p>
+                        
+                        <div class="dns-record">
+                            <div class="code-block mb-2">
+                                <label>Record Name:</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control code-input" value="{{ challenge.record_name }}" readonly>
+                                    <button class="btn btn-outline-secondary copy-btn" data-clipboard-text="{{ challenge.record_name }}">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="code-block mb-2">
+                                <label>Record Type:</label>
+                                <input type="text" class="form-control code-input" value="TXT" readonly>
+                            </div>
+                            
+                            <div class="code-block mb-3">
+                                <label>Record Value:</label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control code-input" value="{{ challenge.record_value }}" readonly>
+                                    <button class="btn btn-outline-secondary copy-btn" data-clipboard-text="{{ challenge.record_value }}">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if verification_failed and verification_results %}
+                    {% for result in verification_results %}
+                        {% if result.domain == challenge.domain and not result.verified %}
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                {{ result.message }}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- Troubleshooting Section -->
+            <div class="troubleshooting-section mt-4">
+                <h4><i class="fas fa-tools me-2"></i>Troubleshooting Common Issues</h4>
+                
+                <div class="accordion" id="troubleshootingAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#hosting-issues">
+                                <i class="fas fa-server me-2"></i>Hosting Provider Restrictions
+                            </button>
+                        </h2>
+                        <div id="hosting-issues" class="accordion-collapse collapse" data-bs-parent="#troubleshootingAccordion">
+                            <div class="accordion-body">
+                                <h6>GoDaddy Shared Hosting:</h6>
+                                <ul>
+                                    <li>Create <code>.well-known/acme-challenge/</code> directory in your public_html folder</li>
+                                    <li>Upload challenge files without file extensions</li>
+                                    <li>Add this to your .htaccess file in the .well-known directory:</li>
+                                </ul>
+                                <pre class="config-code">AddType text/plain .
+&lt;Files "*"&gt;
+    ForceType text/plain
+&lt;/Files&gt;</pre>
+                                
+                                <h6 class="mt-3">Cloudflare Users:</h6>
+                                <ul>
+                                    <li>Temporarily set SSL mode to "Flexible" during validation</li>
+                                    <li>Disable "Always Use HTTPS" redirect</li>
+                                    <li>Consider using DNS validation instead of HTTP validation</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#permission-issues">
+                                <i class="fas fa-lock me-2"></i>File Permission Issues
+                            </button>
+                        </h2>
+                        <div id="permission-issues" class="accordion-collapse collapse" data-bs-parent="#troubleshootingAccordion">
+                            <div class="accordion-body">
+                                <h6>Set Correct Permissions:</h6>
+                                <pre class="config-code">chmod 755 .well-known/
+chmod 755 .well-known/acme-challenge/
+chmod 644 .well-known/acme-challenge/*</pre>
+                                
+                                <h6>For Windows/IIS:</h6>
+                                <ul>
+                                    <li>Ensure IIS_IUSRS has read permissions on the .well-known folder</li>
+                                    <li>Check that the folder is not blocked by URL rewrite rules</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#redirect-issues">
+                                <i class="fas fa-redirect me-2"></i>Redirect and Security Issues
+                            </button>
+                        </h2>
+                        <div id="redirect-issues" class="accordion-collapse collapse" data-bs-parent="#troubleshootingAccordion">
+                            <div class="accordion-body">
+                                <h6>Common Problems:</h6>
+                                <ul>
+                                    <li><strong>HTTPS Redirects:</strong> Disable HTTPS redirects for /.well-known/ paths</li>
+                                    <li><strong>WWW Redirects:</strong> Ensure both www and non-www versions work</li>
+                                    <li><strong>Security Plugins:</strong> Whitelist /.well-known/ in security plugins</li>
+                                    <li><strong>CDN/Proxy:</strong> Temporarily bypass CDN for validation</li>
+                                </ul>
+                                
+                                <h6>WordPress Users:</h6>
+                                <p>Add this to your .htaccess before other rules:</p>
+                                <pre class="config-code">RewriteEngine On
+RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
+# Your existing WordPress rules here</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="validation-actions mt-4">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-lightbulb me-2"></i>
+                    <strong>Pro Tip:</strong> If HTTP validation is difficult due to server restrictions, 
+                    consider using DNS validation instead - it's more reliable for complex hosting setups.
+                </div>
+                
+                <div class="alert alert-warning mb-3">
+                    <i class="fas fa-clock me-2"></i>
+                    <strong>Important:</strong> Complete all validation steps above, then click "Verify & Generate Certificate" below. 
+                    DNS changes may take 5-10 minutes to propagate.
+                </div>
+
+                <form method="POST" action="{{ url_for('verify_challenges', request_id=request_id) }}">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fas fa-certificate me-2"></i>
+                        Verify & Generate Real SSL Certificate
+                    </button>
+                </form>
+
+                <div class="mt-3">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Back to Generator
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Copy to clipboard functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const copyButtons = document.querySelectorAll('.copy-btn');
+    copyButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const text = this.getAttribute('data-clipboard-text');
+            navigator.clipboard.writeText(text).then(() => {
+                const originalIcon = this.querySelector('i');
+                originalIcon.className = 'fas fa-check';
+                this.classList.add('btn-success');
+                this.classList.remove('btn-outline-secondary');
+                
+                setTimeout(() => {
+                    originalIcon.className = 'fas fa-copy';
+                    this.classList.remove('btn-success');
+                    this.classList.add('btn-outline-secondary');
+                }, 2000);
+            });
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="ssl-generator-card">
+            <h1 class="mb-4">SDTS SSL Certificate Generator</h1>
+            
+            <p class="description">
+                Create a Free Let's Encrypt SSL Certificate in a few minutes (including Wildcard SSL).
+            </p>
+            
+            <p class="sub-description">
+                Let's Encrypt certificates are valid for 90 days and can be automatically renewed.
+            </p>
+            
+            <div class="alert alert-success mb-4">
+                <i class="fas fa-check-circle me-2"></i>
+                <strong>Real Let's Encrypt Integration:</strong> Generate browser-trusted SSL certificates with proper domain validation.
+                Real certificates are issued by Let's Encrypt and trusted by all browsers. Demo certificates are self-signed for testing.
+            </div>
+
+            {% if success and file_id %}
+                <!-- Download Section -->
+                <div class="download-section">
+                    <h4 class="text-success mb-3">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Certificate Generated Successfully!
+                    </h4>
+                    <p class="mb-3">Download your GoDaddy-compatible SSL certificate files:</p>
+                    
+                    <div class="download-buttons">
+                        <a href="{{ url_for('download_file', file_id=file_id, file_type='key') }}" 
+                           class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-key me-2"></i>
+                            Download Private Key ({{ domain }}.key)
+                        </a>
+                        
+                        <a href="{{ url_for('download_file', file_id=file_id, file_type='crt') }}" 
+                           class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-certificate me-2"></i>
+                            Download Certificate ({{ domain }}.crt)
+                        </a>
+                        
+                        <a href="{{ url_for('download_file', file_id=file_id, file_type='ca') }}" 
+                           class="btn btn-outline-primary mb-2">
+                            <i class="fas fa-file-certificate me-2"></i>
+                            Download CA Bundle ({{ domain }}-ca.crt)
+                        </a>
+                    </div>
+                    
+                    {% if cert_type == 'demo' %}
+                    <div class="alert alert-warning mt-3 sticky-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Demo Certificate Generated:</strong> This certificate shows "Let's Encrypt Simulation" in the issuer field 
+                        and will not be trusted by browsers. For production use, select "Real SSL Certificate" with domain validation.
+                        Download links expire in 15 minutes.
+                    </div>
+                    {% else %}
+                    <div class="alert alert-success mt-3 sticky-warning">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Real SSL Certificate Generated:</strong> This certificate was issued by Let's Encrypt 
+                        and will be trusted by browsers in production environments.
+                        Download links expire in 15 minutes.
+                    </div>
+                    {% endif %}
+                    
+                    {% if cert_contents %}
+                    <!-- Certificate Contents Section -->
+                    <div class="certificate-contents mt-4">
+                        <h5 class="mb-3">
+                            <i class="fas fa-code me-2"></i>
+                            Certificate Contents (Copy & Paste)
+                        </h5>
+                        
+                        <!-- Private Key -->
+                        <div class="cert-block mb-3">
+                            <div class="cert-header">
+                                <h6>Private Key ({{ domain }}.key)</h6>
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="private-key-content">
+                                    <i class="fas fa-copy me-1"></i>Copy
+                                </button>
+                            </div>
+                            <textarea id="private-key-content" class="cert-textarea" readonly>{{ cert_contents.private_key }}</textarea>
+                        </div>
+                        
+                        <!-- Certificate -->
+                        <div class="cert-block mb-3">
+                            <div class="cert-header">
+                                <h6>Certificate ({{ domain }}.crt)</h6>
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="certificate-content">
+                                    <i class="fas fa-copy me-1"></i>Copy
+                                </button>
+                            </div>
+                            <textarea id="certificate-content" class="cert-textarea" readonly>{{ cert_contents.certificate }}</textarea>
+                        </div>
+                        
+                        <!-- CA Bundle -->
+                        <div class="cert-block mb-3">
+                            <div class="cert-header">
+                                <h6>CA Bundle ({{ domain }}-ca.crt)</h6>
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="ca-bundle-content">
+                                    <i class="fas fa-copy me-1"></i>Copy
+                                </button>
+                            </div>
+                            <textarea id="ca-bundle-content" class="cert-textarea" readonly>{{ cert_contents.ca_bundle }}</textarea>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <!-- SSL Generation Form -->
+                <form method="POST" action="{{ url_for('generate_ssl') }}" id="sslForm">
+                    <div class="mb-3">
+                        <label class="form-label">Certificate Type</label>
+                        <div class="cert-type-selection">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="radio" 
+                                       name="cert_type" 
+                                       id="real" 
+                                       value="real"
+                                       checked>
+                                <label class="form-check-label" for="real">
+                                    <strong>Real SSL Certificate</strong> - Let's Encrypt production 
+                                    <br><small class="text-success">✅ Browser-trusted, requires domain validation</small>
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="radio" 
+                                       name="cert_type" 
+                                       id="demo" 
+                                       value="demo">
+                                <label class="form-check-label" for="demo">
+                                    <strong>Demo Certificate</strong> - GoDaddy-compatible format 
+                                    <br><small class="text-muted">Generates self-signed certificates for testing</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="domains" class="form-label">Enter domain name(s)*</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="domains" 
+                               name="domains" 
+                               placeholder="sdts.org, www.sdts.org, bts.sdts.org, www.bts.sdts.org, library.sdts.org, www.library.sdts.org"
+                               value="sdts.org, www.sdts.org, bts.sdts.org, www.bts.sdts.org, library.sdts.org, www.library.sdts.org"
+                               required>
+                        <div class="form-text">Separate multiple domains with commas</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Enter Email*</label>
+                        <input type="email" 
+                               class="form-control" 
+                               id="email" 
+                               name="email" 
+                               placeholder="youremail@gmail.com"
+                               required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Validation Method</label>
+                        <div class="validation-methods">
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="radio" 
+                                       name="validation_method" 
+                                       id="dns" 
+                                       value="dns"
+                                       checked>
+                                <label class="form-check-label" for="dns">DNS</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" 
+                                       type="radio" 
+                                       name="validation_method" 
+                                       id="http" 
+                                       value="http">
+                                <label class="form-check-label" for="http">HTTP</label>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <div class="mb-4">
+                        <div class="form-check">
+                            <input class="form-check-input" 
+                                   type="checkbox" 
+                                   id="accept_agreement" 
+                                   name="accept_agreement" 
+                                   required>
+                            <label class="form-check-label" for="accept_agreement">
+                                Accept <a href="https://letsencrypt.org/documents/LE-SA-v1.3-September-21-2022.pdf" 
+                                         target="_blank" 
+                                         class="text-danger">Let's Encrypt SA (pdf)</a>*
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-lg w-100" id="generateBtn">
+                        <span class="btn-text">CREATE FREE SSL CERTIFICATE</span>
+                        <span class="btn-loading d-none">
+                            <i class="fas fa-spinner fa-spin me-2"></i>
+                            Generating Certificate...
+                        </span>
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

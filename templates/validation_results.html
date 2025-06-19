@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10 col-lg-8">
+        <div class="ssl-generator-card">
+            <h2 class="mb-4">
+                <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                Domain Validation Results
+            </h2>
+            
+            <div class="alert alert-warning mb-4">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Validation Status:</strong> Some domains failed validation. Review the details below and fix the issues before trying again.
+            </div>
+
+            <div class="validation-results">
+                {% for result in results %}
+                <div class="domain-result mb-4">
+                    <div class="card">
+                        <div class="card-header {% if result.verified %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
+                            <h5 class="mb-0">
+                                {% if result.verified %}
+                                    <i class="fas fa-check-circle me-2"></i>
+                                {% else %}
+                                    <i class="fas fa-times-circle me-2"></i>
+                                {% endif %}
+                                {{ result.domain }}
+                                <span class="badge badge-light ms-2">
+                                    DNS-01
+                                </span>
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                <strong>Status:</strong> 
+                                {% if result.verified %}
+                                    <span class="text-success">✅ Verified</span>
+                                {% else %}
+                                    <span class="text-danger">❌ Failed</span>
+                                {% endif %}
+                            </p>
+                            
+                            <p class="mb-3">
+                                <strong>Details:</strong> {{ result.message }}
+                            </p>
+                            
+                            {% if not result.verified %}
+                            <div class="troubleshooting-section">
+                                <h6><i class="fas fa-tools me-2"></i>Troubleshooting Steps:</h6>
+                                <ol>
+                                    <li><strong>Check DNS Record:</strong> Verify the TXT record exists at <code>_acme-challenge.{{ result.domain }}</code></li>
+                                    <li><strong>Check Record Value:</strong> Ensure the value matches exactly: <code>{{ result.challenge_details.validation }}</code></li>
+                                    <li><strong>DNS Propagation:</strong> Use tools like <a href="https://whatsmydns.net" target="_blank">whatsmydns.net</a> to check global propagation</li>
+                                    <li><strong>GoDaddy Users:</strong> Record name might be simplified to just <code>_acme-challenge</code></li>
+                                    <li><strong>Wait Time:</strong> DNS changes can take 5-60 minutes to propagate globally</li>
+                                </ol>
+                                
+                                <div class="alert alert-info mt-3">
+                                    <strong>Expected DNS Record:</strong><br>
+                                    <strong>Name:</strong> <code>_acme-challenge.{{ result.domain }}</code><br>
+                                    <strong>Type:</strong> TXT<br>
+                                    <strong>Value:</strong> <code>{{ challenge_info.challenges[loop.index0].record_value if challenge_info and challenge_info.challenges and challenge_info.challenges|length > loop.index0 else 'Check validation page for exact value' }}</code>
+                                    
+                                    {% if result.domain.startswith('www.') or '.' in result.domain %}
+                                    <hr>
+                                    <strong>Alternative for GoDaddy users:</strong><br>
+                                    <strong>Name:</strong> <code>_acme-challenge</code> (simplified)<br>
+                                    <strong>Type:</strong> TXT<br>
+                                    <strong>Value:</strong> <code>Same as above</code>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% elif 'HTTP' in result.message %}
+                            <div class="troubleshooting-section">
+                                <h6><i class="fas fa-tools me-2"></i>Troubleshooting Steps:</h6>
+                                <ol>
+                                    <li><strong>Check File Access:</strong> Verify the challenge file is accessible at the URL</li>
+                                    <li><strong>File Permissions:</strong> Ensure proper read permissions (644)</li>
+                                    <li><strong>Web Server Config:</strong> Check for redirects, security plugins, or access restrictions</li>
+                                    <li><strong>HTTPS Redirects:</strong> Temporarily disable HTTPS redirects for /.well-known/ paths</li>
+                                </ol>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="action-buttons mt-4 text-center">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Start Over
+                </a>
+                
+                <form method="POST" action="{{ url_for('verify_challenges', request_id=request_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-refresh me-2"></i>
+                        Retry Validation
+                    </button>
+                </form>
+            </div>
+
+            <div class="alert alert-info mt-4">
+                <i class="fas fa-lightbulb me-2"></i>
+                <strong>DNS Validation Tips:</strong>
+                <ul class="mb-0 mt-2">
+                    <li>DNS validation can be inconsistent due to global propagation delays</li>
+                    <li>If a domain worked yesterday but fails today, wait 10-15 minutes and retry</li>
+                    <li>Use <a href="https://whatsmydns.net" target="_blank">whatsmydns.net</a> to check global DNS propagation</li>
+                    <li>GoDaddy users: Try using just "_acme-challenge" as the record name</li>
+                    <li>TTL (Time To Live) settings affect propagation speed - lower TTL = faster updates</li>
+                </ul>
+            </div>
+            
+            {% if cert_contents and cert_type == 'real' %}
+            <!-- Certificate Contents Section for Real Certificates -->
+            <div class="certificate-contents mt-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-code me-2"></i>
+                    Let's Encrypt Certificate Contents
+                </h5>
+                
+                <!-- Private Key -->
+                <div class="cert-block mb-3">
+                    <div class="cert-header">
+                        <h6>Private Key ({{ file_id }}.key)</h6>
+                        <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="private-key-content">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    <textarea id="private-key-content" class="cert-textarea" readonly>{{ cert_contents.private_key }}</textarea>
+                </div>
+                
+                <!-- Certificate -->
+                <div class="cert-block mb-3">
+                    <div class="cert-header">
+                        <h6>Certificate ({{ file_id }}.crt)</h6>
+                        <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="certificate-content">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    <textarea id="certificate-content" class="cert-textarea" readonly>{{ cert_contents.certificate }}</textarea>
+                </div>
+                
+                <!-- CA Bundle -->
+                <div class="cert-block mb-3">
+                    <div class="cert-header">
+                        <h6>CA Bundle ({{ file_id }}-ca.crt)</h6>
+                        <button class="btn btn-sm btn-outline-secondary copy-btn" data-target="ca-bundle-content">
+                            <i class="fas fa-copy me-1"></i>Copy
+                        </button>
+                    </div>
+                    <textarea id="ca-bundle-content" class="cert-textarea" readonly>{{ cert_contents.ca_bundle }}</textarea>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
