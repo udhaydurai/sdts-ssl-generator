@@ -30,23 +30,17 @@
                     <p class="mb-3">Download your GoDaddy-compatible SSL certificate files:</p>
                     
                     <div class="download-buttons">
-                        <a href="{{ url_for('download_file', file_id=file_id, file_type='key') }}" 
-                           class="btn btn-outline-primary mb-2">
-                            <i class="fas fa-key me-2"></i>
-                            Download Private Key ({{ domain }}.key)
+                        <a href="{{ url_for('main.download_file', file_id=file_id, file_type='key') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-download me-2"></i>Download Private Key (.key)
                         </a>
-                        
-                        <a href="{{ url_for('download_file', file_id=file_id, file_type='crt') }}" 
-                           class="btn btn-outline-primary mb-2">
-                            <i class="fas fa-certificate me-2"></i>
-                            Download Certificate ({{ domain }}.crt)
+                        <a href="{{ url_for('main.download_file', file_id=file_id, file_type='certificate') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-download me-2"></i>Download Certificate (.crt)
                         </a>
-                        
-                        <a href="{{ url_for('download_file', file_id=file_id, file_type='ca') }}" 
-                           class="btn btn-outline-primary mb-2">
-                            <i class="fas fa-file-certificate me-2"></i>
-                            Download CA Bundle ({{ domain }}-ca.crt)
+                        {% if cert_contents.ca_bundle %}
+                        <a href="{{ url_for('main.download_file', file_id=file_id, file_type='ca_bundle') }}" class="btn btn-secondary">
+                            <i class="fas fa-download me-2"></i>Download CA Bundle
                         </a>
+                        {% endif %}
                     </div>
                     
                     {% if cert_type == 'demo' %}
@@ -96,6 +90,7 @@
                         </div>
                         
                         <!-- CA Bundle -->
+                        {% if cert_contents.ca_bundle %}
                         <div class="cert-block mb-3">
                             <div class="cert-header">
                                 <h6>CA Bundle ({{ domain }}-ca.crt)</h6>
@@ -105,12 +100,13 @@
                             </div>
                             <textarea id="ca-bundle-content" class="cert-textarea" readonly>{{ cert_contents.ca_bundle }}</textarea>
                         </div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
             {% else %}
                 <!-- SSL Generation Form -->
-                <form method="POST" action="{{ url_for('generate_ssl') }}" id="sslForm">
+                <form method="POST" action="{{ url_for('main.generate_ssl') }}" id="sslForm">
                     <div class="mb-3">
                         <label class="form-label">Certificate Type</label>
                         <div class="cert-type-selection">
@@ -170,8 +166,7 @@
                                        type="radio" 
                                        name="validation_method" 
                                        id="dns" 
-                                       value="dns"
-                                       checked>
+                                       value="dns">
                                 <label class="form-check-label" for="dns">DNS</label>
                             </div>
                             <div class="form-check">
@@ -179,13 +174,12 @@
                                        type="radio" 
                                        name="validation_method" 
                                        id="http" 
-                                       value="http">
+                                       value="http"
+                                       checked>
                                 <label class="form-check-label" for="http">HTTP</label>
                             </div>
                         </div>
                     </div>
-
-
 
                     <div class="mb-4">
                         <div class="form-check">

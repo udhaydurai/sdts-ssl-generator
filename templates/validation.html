@@ -47,6 +47,12 @@
                         <h6><i class="fas fa-globe me-2"></i>HTTP File Challenge</h6>
                         <p>Create a file on your web server at the following location:</p>
                         
+                        <div class="alert alert-light p-2 mb-3">
+                            <strong>First:</strong> On your server, ensure the following directory exists in your website's root:
+                            <br>
+                            <code>/.well-known/acme-challenge/</code>
+                        </div>
+                        
                         <div class="code-block mb-3">
                             <label>File Path:</label>
                             <div class="input-group">
@@ -64,15 +70,21 @@
                                 <button class="btn btn-outline-secondary copy-btn" data-clipboard-text="{{ challenge.file_content }}">
                                     <i class="fas fa-copy"></i>
                                 </button>
+                                <a href="{{ url_for('main.download_challenge', request_id=request_id, domain=challenge.domain) }}" class="btn btn-info" download>
+                                    <i class="fas fa-download me-1"></i> Download
+                                </a>
                             </div>
                         </div>
 
                         <div class="verification-url mb-3">
-                            <label>Verification URL:</label>
-                            <a href="{{ challenge.verification_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-external-link-alt me-1"></i>
-                                Test: {{ challenge.verification_url }}
-                            </a>
+                            <label>Verification URL (Click Test button):</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" value="{{ challenge.verification_url }}" readonly>
+                                <a href="{{ challenge.verification_url }}" target="_blank" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>
+                                    Test
+                                </a>
+                            </div>
                         </div>
 
                         <div class="alert alert-warning">
@@ -270,7 +282,7 @@ RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
                     DNS changes may take 5-10 minutes to propagate.
                 </div>
 
-                <form method="POST" action="{{ url_for('verify_challenges', request_id=request_id) }}">
+                <form method="POST" action="{{ url_for('main.verify_challenges', request_id=request_id) }}">
                     <button type="submit" class="btn btn-success btn-lg">
                         <i class="fas fa-certificate me-2"></i>
                         Verify & Generate Real SSL Certificate
@@ -278,7 +290,7 @@ RewriteCond %{REQUEST_URI} !^/.well-known/acme-challenge/
                 </form>
 
                 <div class="mt-3">
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <a href="{{ url_for('main.index') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>
                         Back to Generator
                     </a>

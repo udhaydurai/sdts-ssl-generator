@@ -3,6 +3,7 @@ import validators
 from typing import List, Dict, Tuple
 import dns.resolver
 import logging
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,11 @@ class DomainValidator:
                 return False, f"Reserved TLD not allowed: {tld}"
             
             # Check for IP addresses
-            if validators.ip_address.ipv4(domain) or validators.ip_address.ipv6(domain):
+            try:
+                ipaddress.ip_address(domain)
                 return False, "IP addresses are not supported"
+            except ValueError:
+                pass  # Not an IP address, continue validation
             
             # Check for wildcards (only allow at subdomain level)
             if '*' in domain:
@@ -102,7 +106,8 @@ class DomainValidator:
             
             email = email.strip().lower()
             
-            if not validators.email(email):
+            EMAIL_REGEX = re.compile(r"^[^@]+@[^@]+\.[^@]+$")
+            if not EMAIL_REGEX.match(email):
                 return False, "Invalid email format"
             
             # Check for disposable email providers (optional)

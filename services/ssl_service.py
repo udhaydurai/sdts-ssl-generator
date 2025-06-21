@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import tempfile
 import os
 
+from real_acme_client import RealACMEClient
+
 logger = logging.getLogger(__name__)
 
 class SSLServiceInterface(ABC):
@@ -66,70 +68,50 @@ class DemoSSLService(SSLServiceInterface):
 class RealSSLService(SSLServiceInterface):
     """Service for generating real Let's Encrypt certificates"""
     
-    def __init__(self, staging: bool = True):
-        self.staging = staging
-        self.acme_client = None
-    
-    def generate_certificate(self, domains: List[str], email: str, validation_method: str) -> Dict:
-        """Generate real SSL certificate with challenges"""
+    def __init__(self, use_staging=True):
+        self.acme_client = RealACMEClient(use_staging)
+
+    def generate_certificate(self, domains, email, validation_method):
+        """Generates a real SSL certificate."""
         try:
-            from real_acme_client import RealACMEClient
-            self.acme_client = RealACMEClient(staging=self.staging)
-            
-            challenge_result = self.acme_client.generate_certificate_with_challenges(
-                domains=domains,
-                email=email,
-                validation_method=validation_method
-            )
-            
+            challenge_data = self.acme_client.generate_challenges(domains, email, validation_method)
             return {
                 'success': True,
-                'challenge_data': challenge_result,
-                'type': 'real',
-                'domains': domains,
-                'staging': self.staging,
-                'expires': datetime.now() + timedelta(hours=1)
+                'challenge_data': challenge_data,
+                'expires': datetime.now() + timedelta(minutes=60)
             }
-            
         except Exception as e:
-            logger.error(f"Real SSL generation failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'type': 'real'
-            }
-    
-    def verify_challenges(self, request_id: str) -> Dict:
-        """Verify domain validation challenges"""
+            logger.error(f"Real SSL generation failed: {e}")
+            raise
+
+    def verify_challenges(self, challenges):
+        """Verifies domain challenges and completes certificate generation."""
         try:
-            if not self.acme_client:
-                raise Exception("ACME client not initialized")
+            verification_results = self.acme_client.verify_domain_challenges(challenges)
             
-            verified, verification_results = self.acme_client.verify_challenges(request_id)
-            
-            if verified:
-                cert_files = self.acme_client.complete_certificate_generation(request_id)
-                return {
-                    'success': True,
-                    'files': cert_files,
-                    'type': 'real',
-                    'expires': datetime.now() + timedelta(minutes=15)
-                }
-            else:
+            all_verified = all(r['verified'] for r in verification_results)
+
+            if not all_verified:
                 return {
                     'success': False,
                     'verification_results': verification_results,
-                    'type': 'real'
+                    'message': "Some domains failed validation."
                 }
-                
-        except Exception as e:
-            logger.error(f"Challenge verification failed: {str(e)}")
+            
+            # All domains are verified, now finalize the certificate
+            cert_files = self.acme_client.complete_certificate_generation(
+                [c['domain'] for c in challenges]
+            )
+
             return {
-                'success': False,
-                'error': str(e),
-                'type': 'real'
+                'success': True, 
+                'files': cert_files,
+                'expires': datetime.now() + timedelta(minutes=15)
             }
-    
+        except Exception as e:
+            logger.error(f"Challenge verification failed: {e}")
+            raise
+
     def cleanup(self):
         """Cleanup real certificate resources"""
         if self.acme_client:
@@ -144,6 +126,6 @@ class SSLServiceFactory:
         if cert_type == 'demo':
             return DemoSSLService()
         elif cert_type == 'real':
-            return RealSSLService(staging=staging)
+            return RealSSLService(use_staging=staging)
         else:
             raise ValueError(f"Unsupported certificate type: {cert_type}") 

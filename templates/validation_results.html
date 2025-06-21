@@ -15,7 +15,7 @@
             </div>
 
             <div class="validation-results">
-                {% for result in results %}
+                {% for result in verification_results %}
                 <div class="domain-result mb-4">
                     <div class="card">
                         <div class="card-header {% if result.verified %}bg-success text-white{% else %}bg-danger text-white{% endif %}">
@@ -27,7 +27,7 @@
                                 {% endif %}
                                 {{ result.domain }}
                                 <span class="badge badge-light ms-2">
-                                    DNS-01
+                                    {{ challenge_info.validation_method.upper() if challenge_info else 'HTTP' }}-01
                                 </span>
                             </h5>
                         </div>
@@ -49,36 +49,16 @@
                             <div class="troubleshooting-section">
                                 <h6><i class="fas fa-tools me-2"></i>Troubleshooting Steps:</h6>
                                 <ol>
-                                    <li><strong>Check DNS Record:</strong> Verify the TXT record exists at <code>_acme-challenge.{{ result.domain }}</code></li>
-                                    <li><strong>Check Record Value:</strong> Ensure the value matches exactly: <code>{{ result.challenge_details.validation }}</code></li>
-                                    <li><strong>DNS Propagation:</strong> Use tools like <a href="https://whatsmydns.net" target="_blank">whatsmydns.net</a> to check global propagation</li>
-                                    <li><strong>GoDaddy Users:</strong> Record name might be simplified to just <code>_acme-challenge</code></li>
-                                    <li><strong>Wait Time:</strong> DNS changes can take 5-60 minutes to propagate globally</li>
-                                </ol>
-                                
-                                <div class="alert alert-info mt-3">
-                                    <strong>Expected DNS Record:</strong><br>
-                                    <strong>Name:</strong> <code>_acme-challenge.{{ result.domain }}</code><br>
-                                    <strong>Type:</strong> TXT<br>
-                                    <strong>Value:</strong> <code>{{ challenge_info.challenges[loop.index0].record_value if challenge_info and challenge_info.challenges and challenge_info.challenges|length > loop.index0 else 'Check validation page for exact value' }}</code>
-                                    
-                                    {% if result.domain.startswith('www.') or '.' in result.domain %}
-                                    <hr>
-                                    <strong>Alternative for GoDaddy users:</strong><br>
-                                    <strong>Name:</strong> <code>_acme-challenge</code> (simplified)<br>
-                                    <strong>Type:</strong> TXT<br>
-                                    <strong>Value:</strong> <code>Same as above</code>
+                                    {% if challenge_info.validation_method == 'dns' %}
+                                    <li><strong>Check DNS Record:</strong> Verify the TXT record exists at <code>_acme-challenge.{{ result.domain }}</code>.</li>
+                                    <li><strong>Check Record Value:</strong> Ensure the value matches exactly what was provided.</li>
+                                    <li><strong>DNS Propagation:</strong> Use a tool like <a href="https://whatsmydns.net" target="_blank">whatsmydns.net</a> to check global propagation.</li>
+                                    <li><strong>Wait Time:</strong> DNS changes can take several minutes to propagate.</li>
+                                    {% else %}
+                                    <li><strong>Check File Access:</strong> From an external network, try to access the Verification URL. It must return the correct content.</li>
+                                    <li><strong>Web Server Config:</strong> Ensure your `web.config` or `.htaccess` allows serving extensionless files and is not redirecting the URL.</li>
+                                    <li><strong>Firewalls:</strong> Check for any firewalls (local or network) that might block Let's Encrypt's servers.</li>
                                     {% endif %}
-                                </div>
-                            </div>
-                            {% elif 'HTTP' in result.message %}
-                            <div class="troubleshooting-section">
-                                <h6><i class="fas fa-tools me-2"></i>Troubleshooting Steps:</h6>
-                                <ol>
-                                    <li><strong>Check File Access:</strong> Verify the challenge file is accessible at the URL</li>
-                                    <li><strong>File Permissions:</strong> Ensure proper read permissions (644)</li>
-                                    <li><strong>Web Server Config:</strong> Check for redirects, security plugins, or access restrictions</li>
-                                    <li><strong>HTTPS Redirects:</strong> Temporarily disable HTTPS redirects for /.well-known/ paths</li>
                                 </ol>
                             </div>
                             {% endif %}
@@ -89,15 +69,14 @@
             </div>
 
             <div class="action-buttons mt-4 text-center">
-                <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">
+                <a href="{{ url_for('main.index') }}" class="btn btn-secondary me-2">
                     <i class="fas fa-arrow-left me-2"></i>
                     Start Over
                 </a>
-                
-                <form method="POST" action="{{ url_for('verify_challenges', request_id=request_id) }}" style="display: inline;">
+                <form action="{{ url_for('main.verify_challenges', request_id=request_id) }}" method="post" style="display: inline;">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-refresh me-2"></i>
-                        Retry Validation
+                        <i class="fas fa-redo me-2"></i>
+                        Retry Verification
                     </button>
                 </form>
             </div>
