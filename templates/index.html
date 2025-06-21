@@ -30,7 +30,7 @@
                     <p class="mb-3">Download your GoDaddy-compatible SSL certificate files:</p>
                     
                     <div class="download-buttons">
-                        <a href="{{ url_for('main.download_file', file_id=file_id, file_type='key') }}" class="btn btn-primary me-2">
+                        <a href="{{ url_for('main.download_file', file_id=file_id, file_type='private_key') }}" class="btn btn-primary me-2">
                             <i class="fas fa-download me-2"></i>Download Private Key (.key)
                         </a>
                         <a href="{{ url_for('main.download_file', file_id=file_id, file_type='certificate') }}" class="btn btn-primary me-2">
