@@ -87,3 +87,12 @@ uv.lock
 .coverage
 htmlcov/
 .tox/
+
+# Cache and session files
+__pycache__/
+*.pyc
+.session_cache.pkl
+.web_sessions/
+
+# macOS files
+.DS_Store
