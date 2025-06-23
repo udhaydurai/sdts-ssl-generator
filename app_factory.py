@@ -13,6 +13,11 @@ def create_app(config_name='default'):
     # Load configuration
     app.config.from_object(config[config_name])
     
+    # Ensure SESSION_SECRET is set in production
+    if not app.config.get('DEBUG') and not app.config.get('TESTING'):
+        if not app.config.get('SESSION_SECRET'):
+            raise ValueError("SESSION_SECRET is not set. Please set it as a Replit Secret.")
+    
     # Configure logging
     logging.basicConfig(
         level=getattr(logging, app.config['LOG_LEVEL']),
