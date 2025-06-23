@@ -3,8 +3,7 @@ entrypoint = "app.py"
 
 # Specifies the command to run on "Deploy"
 [deployment]
-# Installs dependencies
-build = ["python3", "-m", "pip", "install", "."]
+# The build command is removed to allow Replit's buildpack to automatically handle dependencies.
 # Starts the production server
 run = ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "4", "app:app"]
 
