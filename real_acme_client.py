@@ -180,7 +180,17 @@ class RealACMEClient:
         challenges = []
         for auth_url in self.order_data['authorizations']:
             auth_data = self.session.get(auth_url, timeout=10).json()
-            domain = auth_data['identifier']['value']
+            
+            # Handle both dictionary and string formats for the identifier
+            identifier = auth_data.get('identifier', {})
+            if isinstance(identifier, dict):
+                domain = identifier.get('value')
+            else:
+                domain = identifier # Fallback if it's just a string
+
+            if not domain:
+                logger.error(f"Could not extract domain from identifier: {identifier}")
+                continue # Skip this authorization if we can't get a domain
             
             for chal in auth_data['challenges']:
                 if chal['type'] == 'http-01' and validation_method == 'http':
