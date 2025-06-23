@@ -77,7 +77,6 @@ ehthumbs.db
 Thumbs.db
 
 # Replit specific
-.replit
 repl.nix
 .upm/
 uv.lock

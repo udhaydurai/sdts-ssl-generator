@@ -1,0 +1,14 @@
+language = "python3"
+run = "python app.py"
+
+# This configures the Replit "Deployments" feature
+[deployment]
+# The command to install dependencies
+build = ["pip", "install", "."]
+# The command that starts the production web server
+run = ["gunicorn", "-w", "4", "--bind", "0.0.0.0:$PORT", "--worker-tmp-dir", "/dev/shm", "app:app"]
+
+# The path to check to determine if the server is healthy
+[deployment.healthcheck]
+path = "/health"
+port = "$PORT" 
