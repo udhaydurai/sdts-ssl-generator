@@ -17,9 +17,10 @@ COPY . .
 # Set the production flag for the application
 ENV FLASK_CONFIG=production
 
-# The port will be provided by Replit via the $PORT environment variable
-# The self-hosting app.py will read this variable
-# No EXPOSE needed as Replit handles port mapping
+# Standard platforms (Cloud Run, etc.) provide the PORT environment variable.
+# The self-hosting app.py will read this variable.
+# Exposing the port is good practice for container-based deployments.
+EXPOSE 8080
 
-# The command to run the self-hosting application
-CMD ["python", "app.py"]
+# The command to run the self-hosting application, using the full path to the executable for maximum robustness.
+CMD ["/usr/local/bin/python", "app.py"]

@@ -1,6 +1,5 @@
-# This file now only configures the "Run" button in the IDE
-# All deployment configuration is handled by the Dockerfile
-
+# This file configures the Replit IDE's "Run" button.
+# All deployment is now intended to be done via the Dockerfile on a standard container platform.
 entrypoint = "app.py"
 
 [run]
