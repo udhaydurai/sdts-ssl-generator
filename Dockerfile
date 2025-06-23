@@ -1,4 +1,4 @@
-# Use a specific, stable Python version
+# Use a specific, stable Python version that is common on hosting platforms
 FROM python:3.9-slim
 
 # Set the working directory in the container
@@ -17,10 +17,11 @@ COPY . .
 # Set the production flag for the application
 ENV FLASK_CONFIG=production
 
-# Standard platforms (Cloud Run, etc.) provide the PORT environment variable.
-# The self-hosting app.py will read this variable.
+# The PORT environment variable will be provided by the hosting platform (e.g., Cloud Run).
+# Gunicorn will bind to this port.
 # Exposing the port is good practice for container-based deployments.
 EXPOSE 8080
 
-# The command to run the self-hosting application, using the full path to the executable for maximum robustness.
-CMD ["/usr/local/bin/python", "app.py"]
+# The standard, robust command to run a Flask app in production with Gunicorn.
+# This will be executed by the hosting platform inside the container.
+CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "4"]
