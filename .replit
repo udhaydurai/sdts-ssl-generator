@@ -1,14 +1,18 @@
-language = "python3"
-run = "python app.py"
+# The main file to run
+entrypoint = "app.py"
 
-# This configures the Replit "Deployments" feature
+# Specifies the command to run on "Deploy"
 [deployment]
-# The command to install dependencies
+# Installs dependencies
 build = ["pip", "install", "."]
-# The command that starts the production web server
-run = ["gunicorn", "-w", "4", "--bind", "0.0.0.0:$PORT", "--worker-tmp-dir", "/dev/shm", "app:app"]
+# Starts the production server
+run = ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "4", "app:app"]
 
-# The path to check to determine if the server is healthy
+# Specifies the path for health checks
 [deployment.healthcheck]
 path = "/health"
-port = "$PORT" 
+port = "$PORT"
+
+# The command for the interactive "Run" button in the IDE
+[run]
+command = ["python", "app.py"] 

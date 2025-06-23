@@ -8,6 +8,7 @@ config_name = os.environ.get('FLASK_CONFIG', 'default')
 app = create_app(os.getenv('FLASK_CONFIG') or 'default')
 
 if __name__ == '__main__':
+    # The port is set by the PORT environment variable, defaulting to 5001 for local development
+    port = int(os.environ.get('PORT', 5001))
     # The host must be '0.0.0.0' to be accessible from outside the container
-    # The port is handled by Gunicorn in production, this is for local dev only
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', port=port)
