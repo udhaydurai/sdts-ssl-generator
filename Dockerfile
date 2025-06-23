@@ -4,15 +4,12 @@ FROM python:3.9-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the file that defines our project and dependencies
-COPY pyproject.toml .
+# Copy all application code into the container first
+COPY . .
 
-# Install dependencies using the now-standard pyproject.toml
+# Now, install dependencies using pyproject.toml
 # This creates a consistent and reproducible environment
 RUN pip install .
-
-# Copy the rest of the application code into the container
-COPY . .
 
 # Set the production flag for the application
 ENV FLASK_CONFIG=production

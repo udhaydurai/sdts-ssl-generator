@@ -41,11 +41,6 @@ def save_sessions(acme_challenges):
     with open(SESSION_CACHE_FILE, 'wb') as f:
         pickle.dump(acme_challenges, f)
 
-# Load sessions at startup
-acme_challenges = load_sessions()
-save_sessions(acme_challenges) # Save back to prune expired sessions
-# --- End of Cache ---
-
 # Store for temporary file downloads with expiration
 temp_files = {}
 
@@ -120,6 +115,7 @@ def generate_ssl():
                 client_state = ssl_service.acme_client.export_state()
 
                 # Store the serializable state, not the service object
+                acme_challenges = load_sessions()
                 acme_challenges[request_id] = {
                     'client_state': client_state,
                     'challenges': result['challenge_data']['challenges'],
@@ -169,6 +165,7 @@ def generate_ssl():
 def verify_challenges(request_id):
     """Verify domain validation challenges and generate real certificate"""
     try:
+        acme_challenges = load_sessions()
         if request_id not in acme_challenges:
             flash('Invalid or expired validation request. Please start over.', 'error')
             return redirect(url_for('main.index'))
@@ -222,7 +219,7 @@ def verify_challenges(request_id):
     except Exception as e:
         logger.error(f"Challenge verification process failed: {str(e)}", exc_info=True)
         
-        challenge_session = acme_challenges.get(request_id)
+        challenge_session = load_sessions().get(request_id)
         
         # Create a detailed error message for display
         error_result = [{
@@ -242,6 +239,7 @@ def verify_challenges(request_id):
 @main_bp.route('/download_challenge/<request_id>/<domain>')
 def download_challenge(request_id, domain):
     """Serves the ACME challenge file for download."""
+    acme_challenges = load_sessions()
     if request_id not in acme_challenges:
         flash('Invalid or expired validation request.', 'error')
         return redirect(url_for('main.index'))
@@ -349,12 +347,17 @@ def cleanup_expired_files():
     
     # Clean up expired challenges
     expired_challenges = []
+    acme_challenges = load_sessions()
     for request_id, challenge_info in acme_challenges.items():
         if current_time > challenge_info['expires']:
             expired_challenges.append(request_id)
     
     for request_id in expired_challenges:
         del acme_challenges[request_id]
+    
+    # Save the cleaned up sessions back to file
+    if expired_challenges:
+        save_sessions(acme_challenges)
 
 def cleanup_file(file_id):
     """Clean up a specific file"""
