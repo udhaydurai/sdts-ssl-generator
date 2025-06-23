@@ -4,7 +4,7 @@ entrypoint = "app.py"
 # Specifies the command to run on "Deploy"
 [deployment]
 # Installs dependencies
-build = ["pip", "install", "."]
+build = ["python", "-m", "pip", "install", "."]
 # Starts the production server
 run = ["gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "4", "app:app"]
 
