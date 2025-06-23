@@ -3,9 +3,8 @@ entrypoint = "app.py"
 
 # Specifies the command to run on "Deploy"
 [deployment]
-# The build environment requires 'python3'
-build = ["python3", "-m", "pip", "install", "."]
-# The run environment requires 'python' and running gunicorn as a module
+# The build command is removed to allow Replit's default buildpack to handle dependencies from pyproject.toml
+# The run environment uses 'python -m' to robustly execute gunicorn as a module
 run = ["python", "-m", "gunicorn", "--bind", "0.0.0.0:$PORT", "--workers", "4", "app:app"]
 
 # Specifies the path for health checks
