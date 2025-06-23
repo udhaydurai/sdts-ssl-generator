@@ -1,16 +1,7 @@
-# The main file to run
+# This file now only configures the "Run" button in the IDE
+# All deployment configuration is handled by the Dockerfile
+
 entrypoint = "app.py"
 
-# Specifies the command to run on "Deploy"
-[deployment]
-# The application now starts its own Gunicorn server. We just need to tell Replit to run the file.
-run = ["python", "app.py"]
-
-# Specifies the path for health checks
-[deployment.healthcheck]
-path = "/health"
-port = "$PORT"
-
-# The command for the interactive "Run" button in the IDE
 [run]
 command = ["python", "app.py"] 
