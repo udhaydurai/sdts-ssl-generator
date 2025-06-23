@@ -1,6 +1,11 @@
-# This file configures the Replit IDE's "Run" button.
-# All deployment is now intended to be done via the Dockerfile on a standard container platform.
+# This file's purpose is to trigger Replit's Dockerfile deployment.
 entrypoint = "app.py"
 
+[deployment]
+# The presence of this section is required by Replit to start a deployment.
+# The command specified here will be superseded by the CMD in the Dockerfile.
+run = ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "4"]
+
+# The command for the interactive "Run" button in the IDE.
 [run]
 command = ["python", "app.py"] 
