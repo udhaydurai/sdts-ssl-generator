@@ -29,6 +29,9 @@ class Config:
     # Database settings (for future use)
     DATABASE_URL = os.environ.get('DATABASE_URL')
     
+    # Add FLASK_CONFIG to be read from environment
+    FLASK_CONFIG = os.environ.get('FLASK_CONFIG', 'default')
+    
     # Logging
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
     LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
