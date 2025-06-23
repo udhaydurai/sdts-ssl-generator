@@ -5,7 +5,9 @@ from app_factory import create_app
 config_name = os.environ.get('FLASK_CONFIG', 'default')
 
 # Create application instance
-app = create_app(config_name)
+app = create_app(os.getenv('FLASK_CONFIG') or 'default')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    # The host must be '0.0.0.0' to be accessible from outside the container
+    # The port is handled by Gunicorn in production, this is for local dev only
+    app.run(host='0.0.0.0')

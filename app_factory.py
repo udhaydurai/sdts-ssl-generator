@@ -29,9 +29,11 @@ def create_app(config_name='default'):
     
     # Rate limiting
     if app.config['RATE_LIMIT_ENABLED']:
+        storage_uri = app.config.get('REDIS_URL') or "memory://"
         limiter = Limiter(
             app=app,
             key_func=get_remote_address,
+            storage_uri=storage_uri,
             default_limits=["200 per day", "50 per hour"]
         )
         app.limiter = limiter
