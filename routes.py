@@ -20,26 +20,53 @@ logger = logging.getLogger(__name__)
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.session_cache.pkl')
 
 def load_sessions():
-    """Loads active sessions from a pickle file."""
-    if os.path.exists(SESSION_CACHE_FILE):
+    """Loads active sessions from a pickle file or environment variable."""
+    # Check if we're on Vercel (serverless environment)
+    if os.environ.get('VERCEL'):
+        # On Vercel, use environment variable for session storage
+        import json
+        session_data = os.environ.get('SESSION_DATA', '{}')
         try:
-            with open(SESSION_CACHE_FILE, 'rb') as f:
-                acme_challenges = pickle.load(f)
+            acme_challenges = json.loads(session_data)
             # Filter out expired sessions
             current_time = datetime.now()
             return {
                 k: v for k, v in acme_challenges.items() 
                 if v.get('expires', current_time + timedelta(days=1)) > current_time
             }
-        except (pickle.UnpicklingError, EOFError, TypeError) as e:
-            logger.error(f"Could not load session cache: {e}. Starting fresh.")
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Could not load session data from environment: {e}. Starting fresh.")
             return {}
+    else:
+        # Local/Docker environment - use pickle file
+        if os.path.exists(SESSION_CACHE_FILE):
+            try:
+                with open(SESSION_CACHE_FILE, 'rb') as f:
+                    acme_challenges = pickle.load(f)
+                # Filter out expired sessions
+                current_time = datetime.now()
+                return {
+                    k: v for k, v in acme_challenges.items() 
+                    if v.get('expires', current_time + timedelta(days=1)) > current_time
+                }
+            except (pickle.UnpicklingError, EOFError, TypeError) as e:
+                logger.error(f"Could not load session cache: {e}. Starting fresh.")
+                return {}
     return {}
 
 def save_sessions(acme_challenges):
-    """Saves active sessions to a pickle file."""
-    with open(SESSION_CACHE_FILE, 'wb') as f:
-        pickle.dump(acme_challenges, f)
+    """Saves active sessions to pickle file or environment variable."""
+    # Check if we're on Vercel (serverless environment)
+    if os.environ.get('VERCEL'):
+        # On Vercel, we can't persist to filesystem, so we'll use a simplified approach
+        # For now, we'll just keep sessions in memory for the duration of the request
+        # In a production Vercel app, you'd want to use a database like MongoDB Atlas or Supabase
+        logger.info("Running on Vercel - sessions will be kept in memory only")
+        return
+    else:
+        # Local/Docker environment - use pickle file
+        with open(SESSION_CACHE_FILE, 'wb') as f:
+            pickle.dump(acme_challenges, f)
 
 # Store for temporary file downloads with expiration
 temp_files = {}
@@ -196,13 +223,28 @@ def verify_challenges(request_id):
         
         # Success case: Store files for download
         file_id = str(int(time.time()))
-        temp_files[file_id] = {
-            'files': result['files'],
-            'expires': result['expires'],
-            'domain': challenge_session['domains'][0]
-        }
         
-        cert_contents = _read_certificate_contents(result['files'])
+        # Handle Vercel vs local environment
+        if result.get('vercel_mode'):
+            # On Vercel, store certificate data directly
+            temp_files[file_id] = {
+                'files': result['files'],  # Contains certificate_data and private_key_data
+                'expires': result['expires'],
+                'domain': challenge_session['domains'][0],
+                'vercel_mode': True
+            }
+            cert_contents = {
+                'certificate': result['files']['certificate_data'],
+                'private_key': result['files']['private_key_data']
+            }
+        else:
+            # Local/Docker environment - normal file handling
+            temp_files[file_id] = {
+                'files': result['files'],
+                'expires': result['expires'],
+                'domain': challenge_session['domains'][0]
+            }
+            cert_contents = _read_certificate_contents(result['files'])
         
         # Clean up challenge info
         del acme_challenges[request_id]
@@ -281,29 +323,58 @@ def download_file(file_id, file_type):
         
         file_info = temp_files[file_id]
         
-        # Check if file exists
-        if file_type not in file_info['files']:
-            flash('Invalid file type requested.', 'error')
-            return redirect(url_for('main.index'))
-        
-        file_path = file_info['files'][file_type]
-        
-        if not os.path.exists(file_path):
-            flash('File not found on server.', 'error')
-            return redirect(url_for('main.index'))
-        
-        # Generate filename
-        domain = file_info['domain']
-        if file_type == 'private_key':
-            filename = f'{domain}.key'
-        elif file_type == 'certificate':
-            filename = f'{domain}.crt'
-        elif file_type == 'ca_bundle':
-            filename = f'{domain}-ca.crt'
+        # Handle Vercel vs local environment
+        if file_info.get('vercel_mode'):
+            # On Vercel, serve certificate data directly from memory
+            if file_type == 'certificate' and 'certificate_data' in file_info['files']:
+                cert_data = file_info['files']['certificate_data']
+                buffer = BytesIO()
+                buffer.write(cert_data.encode('utf-8'))
+                buffer.seek(0)
+                return send_file(
+                    buffer,
+                    as_attachment=True,
+                    download_name=f"{file_info['domain']}.crt",
+                    mimetype='text/plain'
+                )
+            elif file_type == 'private_key' and 'private_key_data' in file_info['files']:
+                key_data = file_info['files']['private_key_data']
+                buffer = BytesIO()
+                buffer.write(key_data.encode('utf-8'))
+                buffer.seek(0)
+                return send_file(
+                    buffer,
+                    as_attachment=True,
+                    download_name=f"{file_info['domain']}.key",
+                    mimetype='text/plain'
+                )
+            else:
+                flash('Invalid file type requested.', 'error')
+                return redirect(url_for('main.index'))
         else:
-            filename = f'{domain}-{file_type}'
-        
-        return send_file(file_path, as_attachment=True, download_name=filename)
+            # Local/Docker environment - normal file handling
+            if file_type not in file_info['files']:
+                flash('Invalid file type requested.', 'error')
+                return redirect(url_for('main.index'))
+            
+            file_path = file_info['files'][file_type]
+            
+            if not os.path.exists(file_path):
+                flash('File not found on server.', 'error')
+                return redirect(url_for('main.index'))
+            
+            # Generate filename
+            domain = file_info['domain']
+            if file_type == 'private_key':
+                filename = f'{domain}.key'
+            elif file_type == 'certificate':
+                filename = f'{domain}.crt'
+            elif file_type == 'ca_bundle':
+                filename = f'{domain}-ca.crt'
+            else:
+                filename = f'{domain}-{file_type}'
+            
+            return send_file(file_path, as_attachment=True, download_name=filename)
         
     except Exception as e:
         logger.error(f"Download error: {str(e)}")

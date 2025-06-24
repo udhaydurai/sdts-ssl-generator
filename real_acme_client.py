@@ -257,12 +257,23 @@ class RealACMEClient:
                         encryption_algorithm=serialization.NoEncryption()
                     ).decode('utf-8')
 
-                    temp_dir = tempfile.mkdtemp()
-                    cert_path = os.path.join(temp_dir, 'certificate.crt')
-                    key_path = os.path.join(temp_dir, 'private.key')
-                    with open(cert_path, 'w') as f: f.write(cert_pem)
-                    with open(key_path, 'w') as f: f.write(key_pem)
-                    return {'certificate': cert_path, 'private_key': key_path}
+                    # Check if we're on Vercel (serverless environment)
+                    if os.environ.get('VERCEL'):
+                        # On Vercel, return the certificate data directly
+                        return {
+                            'certificate_data': cert_pem,
+                            'private_key_data': key_pem,
+                            'certificate': None,  # No file path
+                            'private_key': None   # No file path
+                        }
+                    else:
+                        # Local/Docker environment - create temporary files
+                        temp_dir = tempfile.mkdtemp()
+                        cert_path = os.path.join(temp_dir, 'certificate.crt')
+                        key_path = os.path.join(temp_dir, 'private.key')
+                        with open(cert_path, 'w') as f: f.write(cert_pem)
+                        with open(key_path, 'w') as f: f.write(key_pem)
+                        return {'certificate': cert_path, 'private_key': key_path}
                 elif order_status['status'] == 'invalid':
                     logger.error(f"Order failed: {order_status}")
                     raise Exception(f"Certificate order failed: {order_status.get('error', 'No details')}")

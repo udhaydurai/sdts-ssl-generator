@@ -99,15 +99,27 @@ class RealSSLService(SSLServiceInterface):
                 }
             
             # All domains are verified, now finalize the certificate
-            cert_files = self.acme_client.complete_certificate_generation(
+            cert_result = self.acme_client.complete_certificate_generation(
                 [c['domain'] for c in challenges]
             )
 
-            return {
-                'success': True, 
-                'files': cert_files,
-                'expires': datetime.now() + timedelta(minutes=15)
-            }
+            # Check if we're on Vercel and need to handle certificate data differently
+            if os.environ.get('VERCEL') and 'certificate_data' in cert_result:
+                # On Vercel, we need to create temporary files in memory or handle differently
+                # For now, we'll return the data directly and let the routes handle it
+                return {
+                    'success': True, 
+                    'files': cert_result,  # Contains certificate_data and private_key_data
+                    'expires': datetime.now() + timedelta(minutes=15),
+                    'vercel_mode': True
+                }
+            else:
+                # Local/Docker environment - normal file handling
+                return {
+                    'success': True, 
+                    'files': cert_result,
+                    'expires': datetime.now() + timedelta(minutes=15)
+                }
         except Exception as e:
             logger.error(f"Challenge verification failed: {e}")
             raise
