@@ -2,6 +2,49 @@
 
 A Flask-based web application that generates SSL certificates in GoDaddy-compatible format with real Let's Encrypt integration. Designed specifically for nonprofit organizations to easily obtain free SSL certificates.
 
+## 🚀 Quick Deploy Options
+
+### **Option 1: Vercel (Recommended - Free & Easy)**
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/udhaydurai/sdts-ssl-generator)
+
+1. Click the "Deploy with Vercel" button above
+2. Connect your GitHub account
+3. Click "Deploy" - that's it!
+
+**✅ Perfect for:**
+- Free hosting (generous limits)
+- Automatic HTTPS
+- Zero configuration
+- Global CDN
+
+### **Option 2: Docker (Local/Production)**
+```bash
+# Clone the repository
+git clone https://github.com/udhaydurai/sdts-ssl-generator.git
+cd sdts-ssl-generator
+
+# Build and run with Docker
+docker build -t sdts-ssl-generator .
+docker run -p 5001:8080 sdts-ssl-generator
+
+# Access at http://localhost:5001
+```
+
+### **Option 3: Local Development**
+```bash
+# Clone and setup
+git clone https://github.com/udhaydurai/sdts-ssl-generator.git
+cd sdts-ssl-generator
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally
+python app.py
+
+# Access at http://localhost:5001
+```
+
 ## 🏗️ Architecture Overview
 
 This application follows modern architectural patterns:
@@ -12,6 +55,7 @@ This application follows modern architectural patterns:
 - **Configuration Management**: Environment-based configuration with multiple profiles
 - **Input Validation Layer**: Comprehensive validation with security checks
 - **Rate Limiting**: Built-in protection against abuse
+- **Multi-Platform Support**: Works on Vercel, Docker, and traditional hosting
 
 ## 🚀 Features
 
@@ -24,6 +68,7 @@ This application follows modern architectural patterns:
 - **Rate Limiting**: Protection against abuse and API limits
 - **Comprehensive Validation**: Domain, email, and input validation
 - **Health Check Endpoint**: Monitoring and deployment readiness
+- **Serverless Ready**: Optimized for Vercel and other serverless platforms
 
 ## 🏛️ Project Structure
 
@@ -36,108 +81,161 @@ This application follows modern architectural patterns:
 ├── real_acme_client.py    # Let's Encrypt ACME client
 ├── services/              # Service layer
 │   ├── __init__.py
-│   └── ssl_service.py     # SSL service abstraction
-├── validators/            # Input validation layer
+│   └── ssl_service.py     # SSL service implementation
+├── validators/            # Validation layer
 │   ├── __init__.py
 │   └── domain_validator.py # Domain and email validation
-├── templates/             # HTML templates
-├── static/                # CSS, JS, and assets
-├── requirements-github.txt # Python dependencies
-├── env.example            # Environment configuration example
-└── README.md              # This file
+├── templates/             # Jinja2 templates
+├── static/                # Static assets (CSS, JS)
+├── vercel.json           # Vercel deployment configuration
+├── Dockerfile            # Docker configuration
+└── requirements.txt      # Python dependencies
 ```
-
-## 🛠️ Quick Start
-
-### Prerequisites
-
-- Python 3.11+
-- Domain with DNS management access (for real certificates)
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/udhaydurai/sdts-ssl-generator.git
-cd sdts-ssl-generator
-```
-
-2. Install dependencies:
-```bash
-pip install -r requirements-github.txt
-```
-
-3. Configure environment (optional):
-```bash
-cp env.example .env
-# Edit .env with your settings
-```
-
-4. Run the application:
-```bash
-python app.py
-```
-
-5. Open your browser to `http://localhost:5000`
-
-## 📋 Usage
-
-### Demo Certificates
-
-1. Select "Demo Certificate" option
-2. Enter your domain names (comma-separated)
-3. Provide an email address
-4. Click "Generate SSL Certificate"
-5. Download the generated files
-
-### Real Let's Encrypt Certificates
-
-1. Select "Real SSL Certificate" option
-2. Enter your domain names that you control
-3. Provide a valid email address
-4. Choose DNS validation method (recommended)
-5. Follow the DNS record setup instructions
-6. Complete domain validation
-7. Download your browser-trusted certificates
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `FLASK_CONFIG` | Configuration profile (development/production/testing) | `default` |
-| `SECRET_KEY` | Flask secret key | Auto-generated |
-| `SESSION_SECRET` | Session secret key | Auto-generated |
-| `ACME_STAGING` | Use Let's Encrypt staging environment | `true` |
-| `RATE_LIMIT_ENABLED` | Enable rate limiting | `true` |
-| `CERT_EXPIRY_MINUTES` | Certificate download expiry (minutes) | `15` |
-| `CHALLENGE_EXPIRY_HOURS` | Challenge expiry (hours) | `1` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FLASK_CONFIG` | `default` | Configuration profile (development/production) |
+| `ACME_STAGING` | `true` | Use Let's Encrypt staging environment |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `UPLOAD_FOLDER` | `./temp_certs` | Temporary certificate storage |
 
-### Configuration Profiles
+### Let's Encrypt Settings
 
-- **Development**: Debug mode, staging certificates, detailed logging
-- **Production**: Production certificates, optimized performance
-- **Testing**: Test configuration for automated testing
+- **Staging Environment**: Default for testing (untrusted certificates)
+- **Production Environment**: Set `ACME_STAGING=false` for trusted certificates
+- **Rate Limits**: 5 requests per minute per IP (configurable)
+
+## 🚀 Deployment Guides
+
+### Vercel Deployment
+
+1. **Fork this repository** to your GitHub account
+2. **Go to [vercel.com](https://vercel.com)** and sign up/login
+3. **Click "New Project"** → "Import Git Repository"
+4. **Select your forked repository**
+5. **Click "Deploy"** - Vercel will auto-detect the Python configuration
+
+**✅ What's Included:**
+- Automatic HTTPS
+- Global CDN
+- Zero configuration
+- Automatic deployments on git push
+
+### Docker Deployment
+
+```bash
+# Build the image
+docker build -t sdts-ssl-generator .
+
+# Run locally
+docker run -p 5001:8080 sdts-ssl-generator
+
+# Run in production (with environment variables)
+docker run -d \
+  -p 80:8080 \
+  -e ACME_STAGING=false \
+  -e LOG_LEVEL=INFO \
+  --name ssl-generator \
+  sdts-ssl-generator
+```
+
+### Traditional Hosting
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export ACME_STAGING=false
+export LOG_LEVEL=INFO
+
+# Run with Gunicorn (production)
+gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 120
+
+# Or run with Flask (development)
+python app.py
+```
+
+## 🔍 Troubleshooting
+
+### Common Issues & Solutions
+
+#### **"Invalid or expired validation request" Error**
+- **Cause**: Session data not persisting between requests
+- **Solution**: ✅ **Fixed** - App now uses stateless session handling
+
+#### **Vercel Deployment Fails**
+- **Cause**: Read-only filesystem restrictions
+- **Solution**: ✅ **Fixed** - App detects Vercel environment and uses in-memory storage
+
+#### **Let's Encrypt Validation Fails**
+- **HTTP-01 Challenge Issues**:
+  - Ensure `/.well-known/acme-challenge/` directory exists
+  - Check web server configuration (see templates for examples)
+  - Verify no redirects are interfering with the path
+- **DNS-01 Challenge Issues**:
+  - Wait 5-10 minutes for DNS propagation
+  - Use tools like [whatsmydns.net](https://whatsmydns.net) to check global propagation
+
+#### **Certificate Generation Timeout**
+- **Cause**: Let's Encrypt servers taking too long to respond
+- **Solution**: The app includes retry logic and 90-second timeouts
+
+### Server Configuration Examples
+
+#### **Apache (.htaccess)**
+```apache
+RewriteEngine On
+RewriteCond %{REQUEST_URI} ^/.well-known/acme-challenge/
+RewriteRule ^(.*)$ $1 [L]
+
+<Files "/.well-known/acme-challenge/*">
+    ForceType text/plain
+</Files>
+```
+
+#### **Nginx**
+```nginx
+location ^~ /.well-known/acme-challenge/ {
+    default_type "text/plain";
+    root /var/www/html;
+}
+```
+
+#### **IIS (web.config)**
+```xml
+<configuration>
+  <system.webServer>
+    <staticContent>
+      <mimeMap fileExtension="." mimeType="text/plain" />
+    </staticContent>
+    <handlers>
+      <add name="AcmeChallenge" path=".well-known/acme-challenge/*" verb="GET" modules="StaticFileModule" resourceType="Either" />
+    </handlers>
+  </system.webServer>
+</configuration>
+```
 
 ## 🔒 Security Features
 
 - **Input Validation**: Comprehensive domain and email validation
-- **Rate Limiting**: Protection against abuse (200/day, 50/hour by default)
-- **Secure File Handling**: Temporary files with automatic cleanup
-- **Environment-based Configuration**: No hardcoded secrets
-- **CSRF Protection**: Built-in CSRF protection
-- **DNS Validation**: Proper domain ownership verification
+- **Rate Limiting**: Built-in protection against abuse
+- **HTTPS Enforcement**: Automatic SSL certificate generation
+- **Session Security**: Stateless session handling
+- **Error Handling**: Secure error messages without information leakage
 
-## 🧪 Testing
+## 📊 Monitoring
 
-The application includes health check endpoints for monitoring:
-
+### Health Check Endpoint
 ```bash
-curl http://localhost:5000/health
+curl https://your-app.vercel.app/health
 ```
 
-Response:
+**Response:**
 ```json
 {
   "status": "healthy",
@@ -146,61 +244,34 @@ Response:
 }
 ```
 
-## 🚀 Deployment
-
-### Production Deployment
-
-1. Set environment variables:
-```bash
-export FLASK_CONFIG=production
-export ACME_STAGING=false
-export SECRET_KEY=your-secure-secret-key
-```
-
-2. Use Gunicorn for production:
-```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-3. Set up reverse proxy (nginx/Apache) with HTTPS
-
-### Docker Deployment
-
-```bash
-docker build -t ssl-generator .
-docker run -p 5000:5000 ssl-generator
-```
-
-## 🔍 Monitoring & Logging
-
-- **Structured Logging**: JSON-formatted logs with configurable levels
-- **Health Checks**: Built-in health check endpoint
-- **Error Tracking**: Comprehensive error handling and logging
-- **Performance Monitoring**: Rate limiting and request tracking
-
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
+## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🆘 Support
-
-For issues and questions:
-- Check the troubleshooting section in the web interface
-- Review DNS propagation with [whatsmydns.net](https://whatsmydns.net)
-- Ensure proper domain ownership for real certificates
-- Check the health endpoint for system status
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
-- Let's Encrypt for free SSL certificates
-- Flask community for the excellent web framework
-- Bootstrap team for the responsive UI components
-- Nonprofit organizations for inspiring this project
+- **Let's Encrypt**: For providing free SSL certificates
+- **Flask**: For the excellent web framework
+- **Bootstrap**: For the responsive UI components
+- **Cryptography**: For the robust cryptographic operations
+
+## 🆘 Support
+
+If you encounter any issues:
+
+1. **Check the troubleshooting section** above
+2. **Review the deployment logs** in your hosting platform
+3. **Open an issue** on GitHub with detailed error information
+4. **Include your deployment platform** (Vercel, Docker, etc.) in the issue
+
+---
+
+**Made with ❤️ for nonprofit organizations and the open web.**

@@ -1,137 +1,254 @@
-# Deployment Guide
+# 🚀 Deployment Guide
 
-## Replit Deployment
+This guide covers deploying the SDTS SSL Generator on different platforms.
 
-This application is optimized for Replit deployment with automatic scaling.
+## 🎯 Quick Start - Vercel (Recommended)
 
-### Setup
-1. Import this repository to Replit
-2. Install dependencies automatically via `pyproject.toml`
-3. Configure environment variables in Replit Secrets
-4. Run with the configured workflow
+**One-click deployment:**
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/udhaydurai/sdts-ssl-generator)
 
-### Environment Variables
-- `SESSION_SECRET`: Random string for Flask sessions
-- `DATABASE_URL`: PostgreSQL connection (auto-configured in Replit)
+**Manual steps:**
+1. Fork this repository to your GitHub account
+2. Go to [vercel.com](https://vercel.com) and sign up/login
+3. Click "New Project" → "Import Git Repository"
+4. Select your forked repository
+5. Click "Deploy"
 
-## Docker Deployment
+**✅ What you get:**
+- Free hosting with generous limits
+- Automatic HTTPS
+- Global CDN
+- Zero configuration
+- Automatic deployments on git push
 
-### Build and Run
+## 🐳 Docker Deployment
+
+### Local Development
 ```bash
+# Clone the repository
+git clone https://github.com/udhaydurai/sdts-ssl-generator.git
+cd sdts-ssl-generator
+
+# Build the Docker image
 docker build -t sdts-ssl-generator .
-docker run -p 5000:5000 -e SESSION_SECRET=your-secret-key sdts-ssl-generator
+
+# Run locally
+docker run -p 5001:8080 sdts-ssl-generator
+
+# Access at http://localhost:5001
 ```
 
-### Docker Compose
+### Production Deployment
+```bash
+# Build for production
+docker build -t sdts-ssl-generator .
+
+# Run with production settings
+docker run -d \
+  -p 80:8080 \
+  -e ACME_STAGING=false \
+  -e LOG_LEVEL=INFO \
+  --name ssl-generator \
+  --restart unless-stopped \
+  sdts-ssl-generator
+```
+
+### Docker Compose (Optional)
+Create a `docker-compose.yml` file:
 ```yaml
 version: '3.8'
 services:
-  web:
+  ssl-generator:
     build: .
     ports:
-      - "5000:5000"
+      - "80:8080"
     environment:
-      - SESSION_SECRET=your-secret-key
-      - FLASK_ENV=production
-    volumes:
-      - ./temp_certs:/app/temp_certs
+      - ACME_STAGING=false
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
 ```
 
-## Traditional Server Deployment
-
-### Ubuntu/Debian Setup
+Then run:
 ```bash
-# Install Python and dependencies
-sudo apt update
-sudo apt install python3 python3-pip python3-venv nginx
+docker-compose up -d
+```
 
-# Clone and setup
+## 🖥️ Traditional Hosting
+
+### Prerequisites
+- Python 3.9+
+- pip
+- gunicorn (for production)
+
+### Installation
+```bash
+# Clone the repository
 git clone https://github.com/udhaydurai/sdts-ssl-generator.git
 cd sdts-ssl-generator
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements-github.txt
 
-# Run with Gunicorn
-gunicorn --bind 0.0.0.0:5000 --workers 4 main:app
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export ACME_STAGING=false
+export LOG_LEVEL=INFO
+
+# Run with Flask (development)
+python app.py
+
+# Or run with Gunicorn (production)
+gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 120
 ```
 
-### Nginx Configuration
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
+### Systemd Service (Linux)
+Create `/etc/systemd/system/ssl-generator.service`:
+```ini
+[Unit]
+Description=SDTS SSL Generator
+After=network.target
 
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/sdts-ssl-generator
+Environment=ACME_STAGING=false
+Environment=LOG_LEVEL=INFO
+ExecStart=/usr/local/bin/gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 120
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-## Security Considerations
+Enable and start the service:
+```bash
+sudo systemctl enable ssl-generator
+sudo systemctl start ssl-generator
+```
 
-1. **HTTPS Required**: Always deploy behind HTTPS in production
-2. **Firewall**: Restrict access to necessary ports only
-3. **File Permissions**: Ensure temporary certificate files are properly secured
-4. **Session Security**: Use strong SESSION_SECRET values
-5. **Rate Limiting**: Consider implementing rate limiting for certificate requests
+## ☁️ Cloud Platforms
 
-## Production Checklist
+### Railway
+1. Go to [railway.app](https://railway.app)
+2. Sign up with GitHub
+3. Click "New Project" → "Deploy from GitHub repo"
+4. Select your repository
+5. Railway will auto-detect and deploy
 
-- [ ] HTTPS enabled with valid SSL certificate
-- [ ] SESSION_SECRET configured
-- [ ] Database connection tested (if using database features)
-- [ ] Temporary file cleanup verified
-- [ ] DNS validation domains tested
-- [ ] Rate limiting configured
-- [ ] Monitoring and logging enabled
-- [ ] Backup strategy implemented
+### Render
+1. Go to [render.com](https://render.com)
+2. Sign up with GitHub
+3. Click "New" → "Web Service"
+4. Connect your repository
+5. Set build command: `pip install -r requirements.txt`
+6. Set start command: `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`
 
-## Monitoring
+### Fly.io
+1. Install flyctl: `curl -L https://fly.io/install.sh | sh`
+2. Login: `fly auth login`
+3. Deploy: `fly launch`
+4. Follow the prompts
 
-### Health Check Endpoint
-The application provides a basic health check at the root URL (`/`).
+### Google Cloud Run
+1. Install gcloud CLI
+2. Build and push:
+```bash
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/ssl-generator
+gcloud run deploy ssl-generator --image gcr.io/YOUR_PROJECT/ssl-generator --platform managed
+```
 
-### Logging
-Application logs include:
-- Certificate generation requests
-- DNS validation attempts
-- ACME client operations
-- Error conditions
+## 🔧 Configuration
 
-### Metrics to Monitor
-- Certificate generation success rate
-- DNS validation response times
-- Application response times
-- Storage usage (temporary files)
-- ACME API rate limits
+### Environment Variables
 
-## Troubleshooting
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FLASK_CONFIG` | `default` | Configuration profile |
+| `ACME_STAGING` | `true` | Use Let's Encrypt staging |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `UPLOAD_FOLDER` | `./temp_certs` | Temp storage (not used on Vercel) |
+
+### Production Settings
+For production deployments, set:
+```bash
+export ACME_STAGING=false  # Use real Let's Encrypt certificates
+export LOG_LEVEL=WARNING   # Reduce log verbosity
+```
+
+## 🔍 Troubleshooting
 
 ### Common Issues
 
-1. **DNS Validation Failures**
-   - Check DNS record propagation
-   - Verify domain ownership
-   - Test with multiple DNS servers
+#### **"Invalid or expired validation request"**
+- **Fixed**: App now uses stateless session handling
+- **If still occurs**: Check if you're using the latest version
 
-2. **ACME Rate Limits**
-   - Use staging environment for testing
-   - Implement proper caching
-   - Monitor Let's Encrypt rate limits
+#### **Vercel deployment fails**
+- **Fixed**: App detects Vercel environment automatically
+- **If still occurs**: Check Vercel logs for specific errors
 
-3. **Certificate Storage**
-   - Ensure temporary directory exists
-   - Check file permissions
-   - Monitor disk space
+#### **Let's Encrypt validation fails**
+- **HTTP-01**: Check web server configuration
+- **DNS-01**: Wait 5-10 minutes for propagation
+- **Use staging first**: Set `ACME_STAGING=true` for testing
 
-### Debug Mode
-For development, enable debug mode:
+#### **Port conflicts**
+- **Docker**: Use `-p 5001:8080` (host:container)
+- **Local**: Change port in `app.py` or use `PORT` environment variable
+
+### Health Check
+Test your deployment:
 ```bash
-export FLASK_ENV=development
-python main.py
+curl https://your-app-url/health
 ```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00",
+  "version": "1.0.0"
+}
+```
+
+## 📊 Monitoring
+
+### Logs
+- **Vercel**: Check deployment logs in dashboard
+- **Docker**: `docker logs ssl-generator`
+- **Systemd**: `journalctl -u ssl-generator`
+
+### Metrics
+- Health endpoint: `/health`
+- Rate limiting: Built-in protection
+- Error tracking: Comprehensive logging
+
+## 🔒 Security
+
+### Production Checklist
+- [ ] Set `ACME_STAGING=false` for real certificates
+- [ ] Use HTTPS (automatic on Vercel)
+- [ ] Set appropriate rate limits
+- [ ] Monitor logs for abuse
+- [ ] Keep dependencies updated
+
+### Rate Limiting
+Default limits (configurable):
+- 200 requests per day
+- 50 requests per hour
+- 5 requests per minute per IP
+
+## 🆘 Support
+
+If you encounter issues:
+
+1. **Check this troubleshooting guide**
+2. **Review platform-specific logs**
+3. **Open a GitHub issue** with:
+   - Deployment platform
+   - Error logs
+   - Steps to reproduce
+
+---
+
+**Need help?** Check the main [README.md](README.md) for more details.
