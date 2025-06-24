@@ -4,8 +4,26 @@ entrypoint = "app.py"
 [deployment]
 # The presence of this section is required by Replit to start a deployment.
 # The command specified here will be superseded by the CMD in the Dockerfile.
-run = ["gunicorn", "app:app", "--bind", "0.0.0.0:8080", "--workers", "4"]
+run = "gunicorn app:app --bind 0.0.0.0:8080 --workers 2 --timeout 120"
+deploymentTarget = "cloudrun"
 
 # The command for the interactive "Run" button in the IDE.
 [run]
-command = ["python", "app.py"] 
+command = ["python", "app.py"]
+
+[nix]
+channel = "stable-22_11"
+
+[env]
+PYTHONPATH = "${PYTHONPATH}:/home/runner/${REPL_SLUG}"
+
+[packager]
+language = "python3"
+ignoredPackages = ["unit_tests"]
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
+[packager.features.enabledFor]
+python = ["guessImports", "packageSearch"] 
