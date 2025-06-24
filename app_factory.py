@@ -38,8 +38,16 @@ def create_app(config_name='default'):
         )
         app.limiter = limiter
     
-    # Create upload directory
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    # Create upload directory (skip on Vercel due to read-only filesystem)
+    if not os.environ.get('VERCEL'):
+        try:
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        except OSError as e:
+            # Log the error but don't fail the app startup
+            logging.warning(f"Could not create upload directory: {e}")
+    else:
+        # On Vercel, we don't need the upload directory since we handle files in memory
+        logging.info("Running on Vercel - skipping upload directory creation")
     
     # Register blueprints
     from routes import main_bp
